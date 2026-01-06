@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>6-DOF Robot IK Solver</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="container">
+    <div class="header-row" style="justify-content:center; position:relative;">
+        <h2> 6-DOF Robot Inverse Kinematics Calculator</h2>
+        <button class="help-btn" onclick="openModal()">📖 Help & Theory</button>
+    </div>
+
+    <div class="section">
+        <h3>1. Input Target Position</h3>
+        <div class="input-group">
+            <div class="input-box"><label>X (mm)</label><input type="number" id="tx" value="260"></div>
+            <div class="input-box"><label>Y (mm)</label><input type="number" id="ty" value="195"></div>
+            <div class="input-box"><label>Z (mm)</label><input type="number" id="tz" value="860"></div>
+        </div>
+        <div class="input-group">
+            <div class="input-box"><label>Roll (Rx) °</label><input type="number" id="rx" value="-160"></div>
+            <div class="input-box"><label>Pitch (Ry) °</label><input type="number" id="ry" value="10"></div>
+            <div class="input-box"><label>Yaw (Rz) °</label><input type="number" id="rz" value="180"></div>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="header-row">
+            <h3>2. Robot Parameters (DH & Joints Limits)</h3>
+            <div>
+                <label>DH Method: </label>
+                <select id="dhType">
+                    <option value="modified">Modified DH</option>
+                    <option value="standard">Standard DH</option>
+                </select>
+            </div>
+        </div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Joint</th>
+                    <th>a (mm)</th>
+                    <th>d (mm)</th>
+                    <th>alpha (deg)</th>
+                    <th style="background:#c0392b;">Min (deg)</th>
+                    <th style="background:#27ae60;">Max (deg)</th>
+                </tr>
+            </thead>
+            <tbody id="dhBody"></tbody>
+        </table>
+    </div>
+
+    <button onclick="calculateIK()" class="calc-btn">Calculate & Verify</button>
+
+    <div id="result">
+        <h3>✅ Final Joint Angles</h3>
+        <p>Status: <span id="statusText">Waiting...</span></p>
+        <div class="joints-output" id="jointsDisplay"></div>
+
+        <hr>
+        <h3>🔍 Matrix Verification</h3>
+        <div class="matrix-wrapper">
+            <div class="matrix-box">
+                <h4>1. Target Matrix</h4>
+                <div id="matTarget" class="matrix-content"></div>
+            </div>
+            <div class="matrix-box">
+                <h4>2. Achieved Matrix</h4>
+                <div id="matAchieved" class="matrix-content"></div>
+            </div>
+            <div class="matrix-box">
+                <h4>3. Difference (Error)</h4>
+                <div id="matDiff" class="matrix-content"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="helpModal" class="modal">
+    <div class="modal-content">
+        <span class="close-btn" onclick="closeModal()">&times;</span>
+        
+        <div class="tab">
+            <button class="tablinks active" onclick="openTab(event, 'Manual')">User Manual</button>
+            <button class="tablinks" onclick="openTab(event, 'Theory')">Theory & Math</button>
+        </div>
+
+        <div id="Manual" class="tabcontent" style="display:block;">
+            <h3>🛠 How to Use (ব্যবহারবিধি)</h3>
+            <ol>
+                <li><strong>Target Input:</strong> আপনি রোবটের End Effector কে কোথায় পাঠাতে চান, তার X, Y, Z পজিশন এবং Rx, Ry, Rz রোটেশন (Degree) ইনপুট দিন।</li>
+                <li><strong>Select DH Method:</strong> আপনার রোবটটি <em>Standard DH</em> নাকি <em>Modified DH</em> প্যারামিটারে ডিজাইন করা, তা সিলেক্ট করুন (RoboDK বা ইন্ডাস্ট্রিয়াল রোবটের জন্য সাধারণত Modified DH ব্যবহৃত হয়)।</li>
+                <li><strong>Set Parameters:</strong> টেবিলের মধ্যে রোবটের ৬টি লিংকের দৈর্ঘ্য (a, d) এবং টুইস্ট অ্যাঙ্গেল (alpha) বসান।</li>
+                <li><strong>Set Limits:</strong> প্রতিটি জয়েন্ট কত ডিগ্রি পর্যন্ত ঘুরতে পারবে (Min/Max), তা সেট করে দিন।</li>
+                <li><strong>Calculate:</strong> নিচে সবুজ রঙের বাটনে ক্লিক করুন।</li>
+                <li><strong>Verification:</strong> ক্যালকুলেশনের পর নিচে ৩টি ম্যাট্রিক্স দেখতে পাবেন। যদি <em>Difference Matrix</em>-এ সব ভ্যালু ০ এর কাছাকাছি হয়, তবে সলিউশন সঠিক।</li>
+            </ol>
+        </div>
+
+        <div id="Theory" class="tabcontent">
+            <h3>📚 Theoretical Background</h3>
+            <p>This solver uses the <strong>Jacobian Inverse Method</strong> with <strong>Damped Least Squares (DLS)</strong> to solve Inverse Kinematics for a 6-DOF Robot.</p>
+            
+            <h4>1. Forward Kinematics (FK)</h4>
+            <p>FK calculates the position of the end-effector from joint angles using Homogeneous Transformation Matrices based on DH Parameters:</p>
+            <div class="formula">T<sub>total</sub> = A<sub>1</sub> × A<sub>2</sub> × A<sub>3</sub> × A<sub>4</sub> × A<sub>5</sub> × A<sub>6</sub></div>
+
+            <h4>2. Inverse Kinematics (IK) via Jacobian</h4>
+            <p>We use an iterative approach (Numerical Method) because analytical solutions are complex for general 6-DOF robots.</p>
+            <ul>
+                <li><strong>Jacobian (J):</strong> Relates change in joint angles (dθ) to change in position (dX). <br> <code>dX = J × dθ</code></li>
+                <li><strong>Inverse:</strong> To find dθ, we need the inverse: <br> <code>dθ = J<sup>-1</sup> × dX</code></li>
+            </ul>
+
+            <h4>3. Damped Least Squares (DLS)</h4>
+            <p>Standard inverse (J<sup>-1</sup>) fails at <strong>Singularities</strong> (when robot stretches fully or folds). DLS solves this by adding a damping factor (λ):</p>
+            <div class="formula">J<sup>*</sup> = J<sup>T</sup> (J J<sup>T</sup> + λ<sup>2</sup>I)<sup>-1</sup></div>
+            <p>This ensures the robot finds a solution without crashing the math engine, even near limits.</p>
+        </div>
+    </div>
+</div>
+
+<script src="script.js"></script>
+
+</body>
+</html>
